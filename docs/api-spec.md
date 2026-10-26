@@ -1,30 +1,72 @@
-# API contract and acceptance criteria
+# Campus Study Room API — API contract
 
-This educational API uses only deterministic local fixtures. Fix the implementation, not tests or specifications.
+The service provides read-only room and availability queries backed by local JSON data.
 
-## Endpoints
+## `GET /health`
 
-- `GET /health` returns `{"status":"ok"}`.
-- `GET /rooms` returns `{"rooms":[...]}` with `id`, `building`, `capacity`.
-- `GET /rooms/available?start=<ISO8601>&end=<ISO8601>&min_capacity=<integer>` returns `{"available_rooms":[...]}` sorted by room ID.
+**Response (200)**
 
-## Availability rules
-
-1. Intervals are half-open `[start, end)`: adjacent intervals do not conflict.
-2. Positive-duration overlaps make a room unavailable.
-3. Capacity must be >= `min_capacity`, which defaults to 1.
-4. All timestamps must include timezone offsets. Compare instants.
-5. `start >= end`, intervals longer than 24 hours, and `min_capacity < 1` return HTTP 422.
-6. Rooms not blocked by reservations are available. No network or database is required.
-
-## Example
-
-```http
-GET /rooms/available?start=2026-10-27T11:00:00Z&end=2026-10-27T11:30:00Z&min_capacity=4
+```json
+{"status": "ok"}
 ```
 
-Expected: `ENG-303` and `LIB-202`, in that order. LIB-202's booking ends at 11:00, while ENG-303's next booking begins at 11:30.
+## `GET /rooms`
 
-## Change policy
+Returns the room inventory.
 
-Do not weaken validation, alter fixture expectations or change the tests just to make a bug appear fixed.
+**Response (200)**
+
+```json
+{
+  "rooms": [
+    {"id": "LIB-101", "building": "Library", "capacity": 2},
+    {"id": "LIB-202", "building": "Library", "capacity": 4},
+    {"id": "ENG-303", "building": "Engineering", "capacity": 6}
+  ]
+}
+```
+
+The list reflects the current contents of `data/rooms.json`.
+
+## `GET /rooms/available`
+
+Returns rooms that meet the capacity requirement and are not reserved for any overlapping portion of the requested interval. Results are sorted by room ID.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `start` | ISO 8601 timestamp | Yes | Requested start, with timezone offset |
+| `end` | ISO 8601 timestamp | Yes | Requested end, with timezone offset |
+| `min_capacity` | Integer | No | Minimum number of seats; defaults to 1 |
+
+### Validation and availability rules
+
+1. `start` must be strictly earlier than `end`.
+2. Both timestamps must include timezone offsets. Equivalent timestamps with different offsets represent the same instant.
+3. Requested intervals cannot exceed 24 hours.
+4. `min_capacity` must be at least 1.
+5. Reservations and requests use half-open intervals `[start, end)`: intervals that touch at a boundary are not overlapping.
+6. Rooms with capacity below `min_capacity`, or with any positive-duration reservation overlap, are excluded.
+7. Responses list available rooms in ascending room-ID order.
+
+Invalid requests return HTTP 422.
+
+### Example
+
+```http
+GET /rooms/available?start=2026-10-27T13:00:00Z&end=2026-10-27T13:30:00Z&min_capacity=4
+```
+
+**Response (200)**
+
+```json
+{
+  "available_rooms": [
+    {"id": "ENG-303", "building": "Engineering", "capacity": 6},
+    {"id": "LIB-202", "building": "Library", "capacity": 4}
+  ]
+}
+```
+
+See `/docs` and `/openapi.json` for the generated HTTP schema.
