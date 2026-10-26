@@ -1,0 +1,5 @@
+[
+  {"id": "LIB-101", "building": "Library", "capacity": 2},
+  {"id": "LIB-202", "building": "Library", "capacity": 4},
+  {"id": "ENG-303", "building": "Engineering", "capacity": 6}
+]
